@@ -35,6 +35,7 @@ CFLAGS	:=	-g -Wall -O3 \
 		-mcpu=arm7tdmi -mtune=arm7tdmi\
 		-ffast-math \
 		-falign-functions=4 \
+		-DCPU_ARM=1 -DBUILD_STANDALONE=1 -DUSE_THUMB=1 -DUSE_IRAM=1 \
 		$(ARCH)
 
 CFLAGS	+=	$(INCLUDE)
