@@ -3,3 +3,5 @@
 #define IRAM_SIZE       0x8000
 #define CPU_ARM
 #define ARM_ARCH        4
+
+// ??? #define DSP_COUNT 1

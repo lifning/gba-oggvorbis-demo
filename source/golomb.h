@@ -20,8 +20,7 @@
  */
 
 #include <limits.h>
-// LiF
-//#include "codeclib.h"
+#include "codeclib.h"
 
 /**
  * @file golomb.h

@@ -27,8 +27,7 @@
 #include "bitstream.h"
 #include "golomb.h"
 #include "shndec.h"
-// LiF
-//#include "codeclib.h"
+#include "codeclib.h"
 
 #define ULONGSIZE 2
 

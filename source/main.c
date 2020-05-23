@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-#include "tremor/ivorbisfile.h"
+#include "codeclib.h"
 #include "cliff_ogg_bin.h"
 
 typedef char sample_buffer_t[256];
@@ -21,8 +21,6 @@ int current_section = 0;
 
 volatile bool load_more;
 
-OggVorbis_File vf;
-
 typedef struct {
     const u8* data;
     u32 length;
@@ -31,50 +29,6 @@ typedef struct {
 
 my_vorbis_file g_my_vorb;
 u32 g_scanlines_blank;
-
-__attribute__((section(".iwram")))
-size_t vorbis_read_cb(void *ptr, size_t size, size_t nmemb, void *datasource) {
-    my_vorbis_file* my_vorb = (my_vorbis_file*)datasource;
-
-    s32 remaining = (s32)(my_vorb->length) - (s32)(my_vorb->position);
-    if (remaining <= 0) {
-        return 0;
-    }
-    size_t len = size * nmemb;
-    if (len > remaining) {
-        len = remaining;
-    }
-    memcpy(ptr, my_vorb->data + my_vorb->position, len);
-    my_vorb->position += len;
-
-    return len;
-}
-
-__attribute__((section(".iwram")))
-int vorbis_seek_cb(void *datasource, ogg_int64_t offset, int whence) {
-    my_vorbis_file* my_vorb = (my_vorbis_file*)datasource;
-    if (whence == SEEK_SET) {
-        my_vorb->position = (u32)offset;
-    } else if (whence == SEEK_CUR) {
-        my_vorb->position += (int)offset;
-    } else if (whence == SEEK_END) {
-        my_vorb->position = my_vorb->length + (int)offset;
-    } else {
-        return -1;
-    }
-    return 0;
-}
-
-__attribute__((section(".iwram")))
-int vorbis_close_cb(void *datasource) {
-    return 0;
-}
-
-__attribute__((section(".iwram")))
-long int vorbis_tell_cb(void *datasource) {
-    my_vorbis_file* my_vorb = (my_vorbis_file*)datasource;
-    return my_vorb->position;
-}
 
 __attribute__((section(".iwram")))
 void isrTimer1(void) {
@@ -102,14 +56,6 @@ void isrVblank(void) {
     g_scanlines_blank += 228;
 }
 
-__attribute__((section(".iwram")))
-static inline void read_more_ogg(int which_buffer) {
-    ov_read(&vf, pcm16_buffer, sizeof(pcm16_buffer), &current_section);
-    for (int i = 0; i < sizeof(sample_buffer_t); ++i) {
-        buffers[which_buffer][i] = hecko[i<<1];
-    }
-}
-
 int main(void){
     consoleDemoInit();
     
@@ -120,13 +66,6 @@ int main(void){
     g_my_vorb.length = cliff_ogg_bin_size;
     g_my_vorb.position = 0;
 
-    ov_callbacks ovcb = {
-        .read_func = &vorbis_read_cb,
-        .seek_func = &vorbis_seek_cb,
-        .close_func = &vorbis_close_cb,
-        .tell_func = &vorbis_tell_cb,
-    };
-    
     printf(
         "Ogg/Vorbis playback demo\n"
         "\n"
@@ -141,7 +80,7 @@ int main(void){
     );
 
     irqInit();
-
+/*
     if (ov_open_callbacks(&g_my_vorb, &vf, NULL, 0, ovcb) < 0) {
         printf("\nError opening vorbis data.\n");
         while(1) VBlankIntrWait();
@@ -159,7 +98,7 @@ int main(void){
     printf("Reading first buffers...\n");
     read_more_ogg(0);
     read_more_ogg(1);
-    
+*/    
     printf("Beginning playback\n");
 
     irqSet(IRQ_TIMER1, isrTimer1);
@@ -170,7 +109,7 @@ int main(void){
     REG_SOUNDCNT_H = SNDA_L_ENABLE | SNDA_R_ENABLE | SNDA_RESET_FIFO | SNDA_VOL_100;
     REG_SOUNDCNT_X = 0x80; // master enable
 
-    REG_TM0CNT_L = (u16)(65536 - (16777216 / vi->rate));
+//    REG_TM0CNT_L = (u16)(65536 - (16777216 / vi->rate));
     REG_TM0CNT_H = TIMER_START;
 
     REG_TM1CNT_L = (u16)(65536 - sizeof(sample_buffer_t));
@@ -184,7 +123,7 @@ int main(void){
     while(1) {
         if (load_more) {
             u32 start = g_scanlines_blank + REG_VCOUNT;
-            read_more_ogg(!current_buffer);
+  //          read_more_ogg(!current_buffer);
             load_more = 0;
             u32 duration = g_scanlines_blank + REG_VCOUNT - start;
             if (duration > max) {

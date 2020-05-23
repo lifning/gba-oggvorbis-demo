@@ -37,8 +37,7 @@
 //#include "libavutil/log.h"
 //#include "mathops.h"
 
-// LiF
-//#include "codecs.h"
+#include "codecs.h"
 
 /* rockbox' optimised inline functions */
 #ifndef bswap_16
