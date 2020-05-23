@@ -30,7 +30,9 @@ typedef struct {
 } my_vorbis_file;
 
 my_vorbis_file g_my_vorb;
+u32 g_scanlines_blank;
 
+__attribute__((section(".iwram")))
 size_t vorbis_read_cb(void *ptr, size_t size, size_t nmemb, void *datasource) {
     my_vorbis_file* my_vorb = (my_vorbis_file*)datasource;
 
@@ -48,6 +50,7 @@ size_t vorbis_read_cb(void *ptr, size_t size, size_t nmemb, void *datasource) {
     return len;
 }
 
+__attribute__((section(".iwram")))
 int vorbis_seek_cb(void *datasource, ogg_int64_t offset, int whence) {
     my_vorbis_file* my_vorb = (my_vorbis_file*)datasource;
     if (whence == SEEK_SET) {
@@ -62,15 +65,18 @@ int vorbis_seek_cb(void *datasource, ogg_int64_t offset, int whence) {
     return 0;
 }
 
+__attribute__((section(".iwram")))
 int vorbis_close_cb(void *datasource) {
     return 0;
 }
 
+__attribute__((section(".iwram")))
 long int vorbis_tell_cb(void *datasource) {
     my_vorbis_file* my_vorb = (my_vorbis_file*)datasource;
     return my_vorb->position;
 }
 
+__attribute__((section(".iwram")))
 void isrTimer1(void) {
     if(g_my_vorb.position >= g_my_vorb.length){
         printf("Done playing.\n");
@@ -91,6 +97,12 @@ void isrTimer1(void) {
     REG_IF |= REG_IF;
 }
 
+__attribute__((section(".iwram")))
+void isrVblank(void) {
+    g_scanlines_blank += 228;
+}
+
+__attribute__((section(".iwram")))
 static inline void read_more_ogg(int which_buffer) {
     ov_read(&vf, pcm16_buffer, sizeof(pcm16_buffer), &current_section);
     for (int i = 0; i < sizeof(sample_buffer_t); ++i) {
@@ -102,6 +114,7 @@ int main(void){
     consoleDemoInit();
     
     load_more = 0;
+    g_scanlines_blank = 0;
     
     g_my_vorb.data = cliff_ogg_bin;
     g_my_vorb.length = cliff_ogg_bin_size;
@@ -150,7 +163,9 @@ int main(void){
     printf("Beginning playback\n");
 
     irqSet(IRQ_TIMER1, isrTimer1);
+    irqSet(IRQ_VBLANK, isrVblank);
     irqEnable(IRQ_TIMER1);
+    irqEnable(IRQ_VBLANK);
 
     REG_SOUNDCNT_H = SNDA_L_ENABLE | SNDA_R_ENABLE | SNDA_RESET_FIFO | SNDA_VOL_100;
     REG_SOUNDCNT_X = 0x80; // master enable
@@ -165,10 +180,17 @@ int main(void){
     REG_DMA1DAD = (u32)&REG_FIFO_A;
     REG_DMA1CNT = DMA_ENABLE | DMA_DST_FIXED | DMA_SPECIAL | DMA32 | DMA_REPEAT;
     
+    u32 max = 0;
     while(1) {
         if (load_more) {
+            u32 start = g_scanlines_blank + REG_VCOUNT;
             read_more_ogg(!current_buffer);
             load_more = 0;
+            u32 duration = g_scanlines_blank + REG_VCOUNT - start;
+            if (duration > max) {
+                max = duration;
+            }
+            iprintf("\x1b[18;0Hdecode: %4ld lines (max %ld)\n", duration, max);
         }
     }
     return 0;
